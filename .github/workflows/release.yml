@@ -45,17 +45,15 @@ jobs:
           cd dist/binaries
           sha256sum * > SHA256SUMS
 
-      - name: Publish to npm (with Sigstore provenance)
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::warning::NPM_TOKEN not set — skipping npm publish."
-            exit 0
-          fi
-          # `pnpm publish` runs the prepack script (build.mjs) again, which
-          # is fine — the build is deterministic from src.
-          pnpm publish --no-git-checks --access public --provenance
+      - name: Publish to npm via OIDC trusted publisher
+        # No NODE_AUTH_TOKEN. npm CLI exchanges this job's id-token (the
+        # `id-token: write` permission above) for a short-lived publish
+        # credential, matching the pre-registered trusted publisher on
+        # npmjs.com (package + repo owner + repo name + workflow filename).
+        # Provenance is automatic in OIDC mode but we still pass --provenance
+        # for clarity; the Sigstore-attested record links the published
+        # tarball to this exact workflow run.
+        run: pnpm publish --no-git-checks --access public --provenance
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
