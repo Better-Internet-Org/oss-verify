@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: MIT
+#
+# GitLab CI include for the `oss-verified` badge program.
+#
+# Include in your project's .gitlab-ci.yml:
+#
+#   include:
+#     - remote: "https://raw.githubusercontent.com/better-internet-org/oss-verify/main/gitlab-ci/oss-verify.yml"
+#
+# Required project setup:
+#   1. Settings -> CI/CD -> Variables: add ANTHROPIC_API_KEY (masked, protected).
+#   2. Settings -> CI/CD -> Token Permissions: enable id_tokens for cosign.
+#   3. Default branch protection: bot pushes back the bundle on main. The CI
+#      job token needs push permission on protected branches, OR a separate
+#      PROJECT_BOT_TOKEN (project access token, write_repository scope).
+#
+# This template mirrors the GitHub composite action at /action.yml. The
+# Sigstore-keyless signing path uses GitLab's id_tokens feature; the
+# resulting bundle is committed back to .oss-verified/attestation.bundle
+# on the default branch.
+#
+# Status: untested in production — written from the GitHub action's known-
+# good flow, will be validated against a GitLab dummy repo before this
+# include is announced. See SPEC §6 + ci-providers.json for the OIDC
+# issuer allowlist.
+
+variables:
+  OSS_VERIFY_REF: "main"
+  OSS_VERIFY_MODEL_ID: "claude-sonnet-4-6"
+
+oss-verify:
+  image: node:22-bookworm
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        compare_to: "refs/heads/$CI_DEFAULT_BRANCH"
+        paths:
+          - "**/*"
+        exclude:
+          - ".oss-verified/**"
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends git ca-certificates curl
+    - rm -rf /var/lib/apt/lists/*
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    # Pin a cosign release. Keep version aligned with the GitHub action.
+    - curl -fsSL -o /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64"
+    - chmod +x /usr/local/bin/cosign
+    - git clone --depth 1 --branch "${OSS_VERIFY_REF}" https://github.com/better-internet-org/oss-verify.git /tmp/ossv
+    - cd /tmp/ossv && pnpm install --frozen-lockfile --prefer-offline
+    - cd "$CI_PROJECT_DIR"
+  script:
+    - |
+      if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+        echo "ANTHROPIC_API_KEY is required (SPEC §4)." >&2
+        exit 1
+      fi
+    - npx -y tsx /tmp/ossv/src/cli.ts --output predicate > /tmp/predicate.json
+    - echo "Predicate (first 2KB):"
+    - head -c 2000 /tmp/predicate.json
+    - echo
+    - |
+      cosign attest-blob \
+        --predicate /tmp/predicate.json \
+        --type "https://oss-verified.better-internet.org/predicate/v1" \
+        --bundle /tmp/attestation.bundle \
+        --new-bundle-format \
+        --identity-token "$SIGSTORE_ID_TOKEN" \
+        --yes \
+        /tmp/predicate.json
+    - echo "Bundle bytes:" && wc -c < /tmp/attestation.bundle
+    - mkdir -p .oss-verified
+    - cp /tmp/attestation.bundle .oss-verified/attestation.bundle
+    # Commit + push back. Use BOT_TOKEN if set; otherwise fall back to CI_JOB_TOKEN
+    # which works only when the project is configured to permit CI pushes to the
+    # protected default branch.
+    - git config user.email "oss-verified-bot@users.noreply.gitlab.com"
+    - git config user.name  "oss-verified-bot"
+    - git fetch origin "$CI_DEFAULT_BRANCH"
+    - git reset --soft "origin/$CI_DEFAULT_BRANCH"
+    - git add .oss-verified/attestation.bundle
+    - |
+      if git diff --cached --quiet -- .oss-verified/attestation.bundle; then
+        echo "Bundle unchanged — skipping commit."
+        exit 0
+      fi
+      git commit -m "ci(oss-verified): refresh attestation bundle"
+      TOKEN="${BOT_GIT_TOKEN:-$CI_JOB_TOKEN}"
+      USER="${BOT_GIT_TOKEN:+bot}"
+      USER="${USER:-gitlab-ci-token}"
+      git push "https://${USER}:${TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "HEAD:${CI_DEFAULT_BRANCH}"

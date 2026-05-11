@@ -38,6 +38,19 @@ jobs:
 
 Then visit `https://oss-verified.better-internet.org/badge/github/<your-owner>/<your-repo>` to see the SVG.
 
+## Use it on GitLab CI
+
+Include this template in your project's `.gitlab-ci.yml`:
+
+```yaml
+include:
+  - remote: "https://raw.githubusercontent.com/better-internet-org/oss-verify/main/gitlab-ci/oss-verify.yml"
+```
+
+Required setup: add `ANTHROPIC_API_KEY` as a masked + protected CI/CD variable. The template uses GitLab's `id_tokens` feature for Sigstore keyless signing.
+
+Status: written from the known-good GitHub flow; full end-to-end validation pending a GitLab dummy repo. Open an issue if you hit problems.
+
 ## What it checks
 
 Per [SPEC §3](./spec/SPEC.md), the CLI must independently pass:
