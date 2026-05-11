@@ -25,7 +25,9 @@
 # issuer allowlist.
 
 variables:
-  OSS_VERIFY_REF: "main"
+  # Override OSS_VERIFY_VERSION in your .gitlab-ci.yml to pin a specific
+  # version (e.g. "0.1.0"). Defaults to the latest published release.
+  OSS_VERIFY_VERSION: "latest"
   OSS_VERIFY_MODEL_ID: "claude-sonnet-4-6"
 
 oss-verify:
@@ -45,21 +47,19 @@ oss-verify:
     - apt-get update
     - apt-get install -y --no-install-recommends git ca-certificates curl
     - rm -rf /var/lib/apt/lists/*
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
     # Pin a cosign release. Keep version aligned with the GitHub action.
     - curl -fsSL -o /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64"
     - chmod +x /usr/local/bin/cosign
-    - git clone --depth 1 --branch "${OSS_VERIFY_REF}" https://github.com/better-internet-org/oss-verify.git /tmp/ossv
-    - cd /tmp/ossv && pnpm install --frozen-lockfile --prefer-offline
-    - cd "$CI_PROJECT_DIR"
+    # CLI from npm. Provenance attestation chains npm tarball -> Sigstore
+    # Rekor -> github.com/Better-Internet-Org/oss-verify/release.yml run.
+    - npm install -g "@better-internet/oss-verify@${OSS_VERIFY_VERSION}"
   script:
     - |
       if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
         echo "ANTHROPIC_API_KEY is required (SPEC §4)." >&2
         exit 1
       fi
-    - npx -y tsx /tmp/ossv/src/cli.ts --output predicate > /tmp/predicate.json
+    - oss-verify --output predicate > /tmp/predicate.json
     - echo "Predicate (first 2KB):"
     - head -c 2000 /tmp/predicate.json
     - echo
