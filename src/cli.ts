@@ -6,7 +6,7 @@ import { checkOsiLicense } from "./checks/osi-license.js";
 import { checkReuse } from "./checks/reuse.js";
 import { checkSbom } from "./checks/sbom.js";
 import { commitSha, defaultBranch, repoUrlFromRemote } from "./git.js";
-import { PREDICATE_TYPE_URI, buildPredicate } from "./predicate.js";
+import { buildPredicate } from "./predicate.js";
 import type { CheckContext, Predicate } from "./types.js";
 
 type Args = {
@@ -170,19 +170,14 @@ async function main(): Promise<void> {
 	});
 
 	if (args.output === "predicate" || args.output === "both") {
-		// In-toto Statement envelope around the predicate (what cosign attest --predicate consumes).
-		const statement = {
-			_type: "https://in-toto.io/Statement/v1",
-			subject: [
-				{
-					name: ctx.repoUrl.startsWith("http") ? `git+${ctx.repoUrl}` : ctx.repoUrl,
-					digest: { gitCommit: ctx.commitSha },
-				},
-			],
-			predicateType: PREDICATE_TYPE_URI,
-			predicate,
-		};
-		process.stdout.write(`${JSON.stringify(statement, null, 2)}\n`);
+		// Emit ONLY the predicate body. `cosign attest-blob --predicate` reads
+		// this file as the predicate content and wraps it in its own in-toto
+		// Statement using `--type` for predicateType and the input file for
+		// the subject. Emitting a full Statement here would cause cosign to
+		// nest our Statement inside another Statement, so verifiers see
+		// `statement.predicate.predicate.criteria` and `predicateAllPass`
+		// reads the wrong layer as undefined.
+		process.stdout.write(`${JSON.stringify(predicate, null, 2)}\n`);
 	}
 
 	process.exit(0);
