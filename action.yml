@@ -9,13 +9,8 @@ inputs:
     required: false
     default: "claude-sonnet-4-6"
   anthropic-api-key:
-    description: Anthropic API key. If unset, the CLI runs --allow-llm-skip (non-conforming per SPEC §4).
-    required: false
-    default: ""
-  skip-llm:
-    description: Force --allow-llm-skip even if an API key is present. Use only for development.
-    required: false
-    default: "false"
+    description: Anthropic API key for the SPEC §7 LLM audit. Required — there is no opt-out per SPEC §4.
+    required: true
 
 runs:
   using: composite
@@ -41,12 +36,11 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         OSS_VERIFY_MODEL_ID: ${{ inputs.model-id }}
       run: |
-        FLAGS="--output predicate"
-        if [ "${{ inputs.skip-llm }}" = "true" ] || [ -z "$ANTHROPIC_API_KEY" ]; then
-          FLAGS="$FLAGS --allow-llm-skip"
+        if [ -z "$ANTHROPIC_API_KEY" ]; then
+          echo "::error::ANTHROPIC_API_KEY is required. Set secrets.ANTHROPIC_API_KEY on the consumer repo."
+          exit 1
         fi
-        # shellcheck disable=SC2086
-        npx -y tsx "${{ github.action_path }}/src/cli.ts" $FLAGS > /tmp/predicate.json
+        npx -y tsx "${{ github.action_path }}/src/cli.ts" --output predicate > /tmp/predicate.json
         echo "::group::Predicate"
         head -c 2000 /tmp/predicate.json
         echo

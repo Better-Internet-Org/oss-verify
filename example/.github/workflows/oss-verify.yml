@@ -24,7 +24,7 @@ jobs:
 
       - uses: better-internet-org/oss-verify@main
         with:
-          # Optional. Without it, --allow-llm-skip kicks in and the predicate
-          # carries an explicit "non-conforming per SPEC §4" rationale so
-          # verifiers can see the LLM-audit gap.
+          # Required. SPEC §4 makes the LLM audit step mandatory — the CLI
+          # exits 1 if ANTHROPIC_API_KEY is missing. Set as a repo secret:
+          # Settings → Secrets and variables → Actions → New repository secret.
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

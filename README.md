@@ -67,7 +67,8 @@ Flags:
 | `--repo-url <url>` | Override repo URL (default: derived from git remote) |
 | `--output report\|predicate\|both` | Output format (default: report) |
 | `--skip-sbom` | Bypass the SBOM check (use only for non-JS projects until detectors ship) |
-| `--allow-llm-skip` | Pass the LLM audit if `ANTHROPIC_API_KEY` is unset. **Non-conforming per SPEC §4** — only present so the CLI runs end-to-end without operator API-key plumbing. |
+
+`ANTHROPIC_API_KEY` is required — the LLM audit step is mandatory per SPEC §4 and the CLI exits 1 if the key is missing. Override the default model via `OSS_VERIFY_MODEL_ID` (must be on the active allowlist in [`spec/models.json`](./spec/models.json)).
 
 ## Example test fixture
 

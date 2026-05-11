@@ -69,12 +69,11 @@ export type LlmAuditResult = {
 	verdict: LlmVerdict;
 	promptHash: string;
 	modelId: string;
-	skipped: boolean;
 };
 
 export async function runLlmAudit(
 	ctx: CheckContext,
-	opts: { modelId: string; apiKey?: string; allowSkip: boolean },
+	opts: { modelId: string; apiKey?: string },
 ): Promise<LlmAuditResult> {
 	const allowlisted = (modelsAllowlist.models as ModelEntry[]).find(
 		(m) => m.model_id === opts.modelId && m.status === "active",
@@ -85,27 +84,18 @@ export async function runLlmAudit(
 		);
 	}
 
+	if (!opts.apiKey) {
+		// SPEC §4: the LLM audit step is mandatory; there is no opt-out flag
+		// and no environment override. CI must inject ANTHROPIC_API_KEY.
+		throw new Error(
+			"ANTHROPIC_API_KEY is not set. SPEC §4 requires the LLM audit step; " +
+				"add the API key as a CI secret (e.g. `secrets.ANTHROPIC_API_KEY` on " +
+				"GitHub Actions) and re-run.",
+		);
+	}
+
 	const envelope = buildEnvelope(ctx);
 	const promptHash = sha256Hex(`${PROMPT_TEMPLATE_VERSION}\n${SYSTEM_PROMPT}\n\n${envelope.text}`);
-
-	if (!opts.apiKey) {
-		if (!opts.allowSkip) {
-			throw new Error(
-				"ANTHROPIC_API_KEY is not set and --allow-llm-skip was not passed. " +
-					"Per SPEC §4, the LLM audit step is mandatory; CI must inject the API key.",
-			);
-		}
-		return {
-			verdict: {
-				verdict: "pass",
-				rationale: "LLM audit skipped (no ANTHROPIC_API_KEY); non-conforming per SPEC §4",
-				passes: 0,
-			},
-			promptHash,
-			modelId: opts.modelId,
-			skipped: true,
-		};
-	}
 
 	const verdict = await callAnthropic({
 		modelId: opts.modelId,
@@ -115,7 +105,7 @@ export async function runLlmAudit(
 		envelope: envelope.text,
 	});
 
-	return { verdict, promptHash, modelId: opts.modelId, skipped: false };
+	return { verdict, promptHash, modelId: opts.modelId };
 }
 
 function buildEnvelope(ctx: CheckContext): { text: string; truncated: boolean; fileCount: number } {

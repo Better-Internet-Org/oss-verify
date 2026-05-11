@@ -65,7 +65,11 @@ async function run(vc) {
 		proof.proofPurpose === "assertionMethod",
 		`expected assertionMethod, got ${proof.proofPurpose}`,
 	);
-	check(result, "vc.type_contains_VerifiableCredential", Array.isArray(vc.type) && vc.type.includes("VerifiableCredential"));
+	check(
+		result,
+		"vc.type_contains_VerifiableCredential",
+		Array.isArray(vc.type) && vc.type.includes("VerifiableCredential"),
+	);
 	check(
 		result,
 		"vc.validFrom_in_past",
@@ -82,7 +86,9 @@ async function run(vc) {
 	const didUrl = `https://${host}/.well-known/did.json`;
 	let didDoc;
 	try {
-		const r = await fetch(didUrl, { headers: { accept: "application/did+json, application/json" } });
+		const r = await fetch(didUrl, {
+			headers: { accept: "application/did+json, application/json" },
+		});
 		if (!r.ok) fail("did_fetch_failed", `${didUrl}: ${r.status}`);
 		didDoc = await r.json();
 	} catch (e) {
@@ -116,13 +122,15 @@ async function run(vc) {
 	);
 
 	// 4. Decode publicKeyMultibase → raw 32-byte Ed25519 public key.
-	if (typeof vm.publicKeyMultibase !== "string") fail("vm_no_multibase", "publicKeyMultibase missing");
+	if (typeof vm.publicKeyMultibase !== "string")
+		fail("vm_no_multibase", "publicKeyMultibase missing");
 	const pubKeyRaw = decodeMultibaseKey(vm.publicKeyMultibase);
 
 	// 5. Decode signature.
 	if (typeof proof.proofValue !== "string") fail("proof_no_value", "proof.proofValue missing");
 	const signature = decodeMultibaseSig(proof.proofValue);
-	if (signature.length !== 64) fail("bad_signature_length", `expected 64 bytes, got ${signature.length}`);
+	if (signature.length !== 64)
+		fail("bad_signature_length", `expected 64 bytes, got ${signature.length}`);
 
 	// 6. Build signing input per eddsa-jcs-2022:
 	//    proofConfig = proof with proofValue removed + @context from credential
@@ -152,7 +160,7 @@ async function run(vc) {
 	const evidence = Array.isArray(vc.evidence) ? vc.evidence : [];
 	for (const e of evidence) {
 		if (e?.type === "SigstoreAttestation" && e.rekorUrl) {
-			result.checks["evidence_rekor_url"] = { ok: true, value: e.rekorUrl };
+			result.checks.evidence_rekor_url = { ok: true, value: e.rekorUrl };
 		}
 	}
 
@@ -241,9 +249,12 @@ function decodeMultibaseKey(s) {
 	// Expected: 'z' (base58btc) + multicodec_ed25519_pub(0xed 0x01) + 32 bytes
 	if (!s.startsWith("z")) throw new Error(`unsupported multibase prefix '${s[0]}', expected 'z'`);
 	const bytes = decodeBase58btc(s.slice(1));
-	if (bytes.length !== 34) throw new Error(`expected 34 bytes (2 prefix + 32 key), got ${bytes.length}`);
+	if (bytes.length !== 34)
+		throw new Error(`expected 34 bytes (2 prefix + 32 key), got ${bytes.length}`);
 	if (bytes[0] !== 0xed || bytes[1] !== 0x01) {
-		throw new Error(`unexpected multicodec prefix 0x${bytes[0].toString(16)}${bytes[1].toString(16)}, expected ed01 (Ed25519)`);
+		throw new Error(
+			`unexpected multicodec prefix 0x${bytes[0].toString(16)}${bytes[1].toString(16)}, expected ed01 (Ed25519)`,
+		);
 	}
 	return bytes.subarray(2);
 }

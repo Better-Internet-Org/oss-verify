@@ -14,9 +14,9 @@ To use as your dummy repo:
    GitHub repository — e.g. `<you>/oss-verified-test-fixture`.
 2. Set Settings → Actions → General → "Workflow permissions" to **Read and
    write permissions** so the bot can commit the attestation bundle back.
-3. Optional: add an `ANTHROPIC_API_KEY` repo secret to run the SPEC §7 LLM
-   audit. Without it the CLI falls back to `--allow-llm-skip` and the
-   predicate carries an explicit "non-conforming per SPEC §4" rationale.
+3. Add an `ANTHROPIC_API_KEY` repo secret (Settings → Secrets and variables
+   → Actions). SPEC §4 makes the LLM audit mandatory; the workflow fails
+   fast if the secret is missing.
 4. Push to `main`. The workflow uses the published
    `better-internet-org/oss-verify@main` composite action, which runs the
    deterministic checks, signs the predicate via Sigstore keyless, and
