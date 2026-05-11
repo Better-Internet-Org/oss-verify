@@ -14,7 +14,7 @@ type Args = {
 	repoUrl?: string;
 	output: "predicate" | "report" | "both";
 	skipSbom: boolean;
-	deterministicOnly: boolean;
+	reportJson: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -22,7 +22,7 @@ function parseArgs(argv: string[]): Args {
 		repoRoot: process.cwd(),
 		output: "report",
 		skipSbom: false,
-		deterministicOnly: false,
+		reportJson: false,
 	};
 	for (let i = 2; i < argv.length; i++) {
 		const a = argv[i];
@@ -30,7 +30,7 @@ function parseArgs(argv: string[]): Args {
 		else if (a === "--repo-url") args.repoUrl = argv[++i];
 		else if (a === "--output") args.output = argv[++i] as Args["output"];
 		else if (a === "--skip-sbom") args.skipSbom = true;
-		else if (a === "--deterministic-only") args.deterministicOnly = true;
+		else if (a === "--report-json") args.reportJson = true;
 		else if (a === "--help" || a === "-h") {
 			printHelp();
 			process.exit(0);
@@ -55,16 +55,17 @@ Options:
   --output <mode>      'report' (human, default) | 'predicate' (in-toto JSON) | 'both'
   --skip-sbom          Pass the SBOM check (use only for non-JS projects until
                        other-ecosystem detectors ship)
-  --deterministic-only INTERNAL/preview mode. Runs the 4 deterministic checks
-                       only, emits the result as JSON, skips the LLM audit,
-                       and does NOT gate output on pass/fail. NOT a substitute
-                       for the conformant attestation flow — output is not a
-                       valid predicate and MUST NOT be signed and published as
+  --report-json        INTERNAL/preview mode. Runs the full conformant
+                       pipeline (deterministic + LLM) and emits a JSON status
+                       report instead of a predicate; always exits 0 so the
+                       caller can record fail states. NOT a substitute for
+                       the conformant attestation flow — output is not a
+                       valid predicate and MUST NOT be signed or published as
                        one. Used by the oss-verified watchlist for monthly
-                       monitoring of candidate projects.
+                       monitoring of tracked projects.
   -h, --help           Show this help
 
-Required environment (unless --deterministic-only):
+Required environment:
   ANTHROPIC_API_KEY    SPEC §7 LLM audit. The CLI exits 1 if missing —
                        per SPEC §4 the LLM step is mandatory and there
                        is no opt-out.
@@ -136,18 +137,42 @@ async function main(): Promise<void> {
 		);
 	}
 
-	if (args.deterministicOnly) {
-		// Internal/preview mode. Emit JSON of the 4 deterministic check results
-		// + the same evidence fields a predicate would carry, then exit 0 even
-		// on failure. NOT a conformant attestation; consumers MUST NOT sign or
-		// publish this output as one.
+	// In `--report-json` mode the LLM step still runs (SPEC §7 mandatory) but
+	// any failure surfaces as an llm_verdict in the JSON rather than crashing
+	// the CLI — the watchlist runner needs a structured record either way.
+	const auditTry = async () => {
+		try {
+			return {
+				ok: true as const,
+				audit: await runLlmAudit(ctx, {
+					modelId: process.env.OSS_VERIFY_MODEL_ID || "claude-sonnet-4-6",
+					apiKey: process.env.ANTHROPIC_API_KEY,
+				}),
+			};
+		} catch (e) {
+			return { ok: false as const, error: (e as Error).message };
+		}
+	};
+
+	if (args.reportJson) {
+		// Internal/preview mode. Runs the full conformant pipeline (deterministic
+		// + LLM) and emits a JSON status report instead of a predicate. Always
+		// exits 0 so callers can record fail states (the watchlist runner does).
+		// NOT a substitute for the conformant attestation flow — output is not
+		// a valid predicate and MUST NOT be signed and published as one.
+		const a = await auditTry();
+		const llm = a.ok
+			? a.audit.verdict
+			: { verdict: "block" as const, rationale: a.error, passes: 0 };
 		const report = {
-			mode: "deterministic-only",
+			mode: "report-json",
 			repo_url: ctx.repoUrl,
 			commit_sha: ctx.commitSha,
 			default_branch: branch,
 			checked_at: new Date().toISOString(),
 			deterministic_pass: deterministicPass,
+			llm_verdict: llm,
+			overall_pass: deterministicPass && llm.verdict === "pass",
 			criteria,
 			evidence: {
 				osi_response_hash: osiResponseHash,
@@ -168,10 +193,12 @@ async function main(): Promise<void> {
 	}
 
 	// LLM audit (SPEC §7). MAY block, MUST NOT grant.
-	const audit = await runLlmAudit(ctx, {
-		modelId: process.env.OSS_VERIFY_MODEL_ID || "claude-sonnet-4-6",
-		apiKey: process.env.ANTHROPIC_API_KEY,
-	});
+	const auditAttempt = await auditTry();
+	if (!auditAttempt.ok) {
+		console.error(`oss-verify error (LLM audit): ${auditAttempt.error}`);
+		process.exit(2);
+	}
+	const audit = auditAttempt.audit;
 
 	if (args.output !== "predicate") {
 		const glyph = audit.verdict.verdict === "block" ? "\x1b[31m✗\x1b[0m" : "\x1b[32m✓\x1b[0m";
