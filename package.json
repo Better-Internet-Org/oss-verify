@@ -1,7 +1,10 @@
 {
-	"name": "oss-verify",
+	"name": "@better-internet-org/oss-verify",
 	"version": "0.1.0-draft",
 	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
 	"type": "module",
 	"description": "Forge-agnostic CLI for the oss-verified badge: deterministic open-source-licensing checks + LLM audit + Sigstore-keyless attestation.",
 	"repository": {
