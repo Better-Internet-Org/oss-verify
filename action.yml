@@ -73,6 +73,14 @@ runs:
       run: |
         mkdir -p .oss-verified
         cp /tmp/attestation.bundle .oss-verified/attestation.bundle
+        git config user.name  "oss-verified-bot"
+        git config user.email "oss-verified-bot@users.noreply.github.com"
+        # Rebase onto the latest origin/main so the push fast-forwards even
+        # when an earlier bundle-commit (or any other push) has advanced
+        # the branch since the workflow's checkout SHA was pinned.
+        # --soft so the new bundle stays in the working tree.
+        git fetch origin "${GITHUB_REF_NAME:-main}"
+        git reset --soft "origin/${GITHUB_REF_NAME:-main}"
         # Stage first so the diff catches new (untracked) files too — plain
         # `git diff` ignores untracked paths, which on the first run silently
         # turns "new bundle" into a no-op.
@@ -81,7 +89,5 @@ runs:
           echo "Bundle unchanged — skipping commit."
           exit 0
         fi
-        git config user.name  "oss-verified-bot"
-        git config user.email "oss-verified-bot@users.noreply.github.com"
         git commit -m "ci(oss-verified): refresh attestation bundle"
-        git push
+        git push origin "HEAD:${GITHUB_REF_NAME:-main}"
