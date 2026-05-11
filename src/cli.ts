@@ -14,16 +14,23 @@ type Args = {
 	repoUrl?: string;
 	output: "predicate" | "report" | "both";
 	skipSbom: boolean;
+	deterministicOnly: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
-	const args: Args = { repoRoot: process.cwd(), output: "report", skipSbom: false };
+	const args: Args = {
+		repoRoot: process.cwd(),
+		output: "report",
+		skipSbom: false,
+		deterministicOnly: false,
+	};
 	for (let i = 2; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--repo") args.repoRoot = resolve(argv[++i] ?? ".");
 		else if (a === "--repo-url") args.repoUrl = argv[++i];
 		else if (a === "--output") args.output = argv[++i] as Args["output"];
 		else if (a === "--skip-sbom") args.skipSbom = true;
+		else if (a === "--deterministic-only") args.deterministicOnly = true;
 		else if (a === "--help" || a === "-h") {
 			printHelp();
 			process.exit(0);
@@ -48,9 +55,16 @@ Options:
   --output <mode>      'report' (human, default) | 'predicate' (in-toto JSON) | 'both'
   --skip-sbom          Pass the SBOM check (use only for non-JS projects until
                        other-ecosystem detectors ship)
+  --deterministic-only INTERNAL/preview mode. Runs the 4 deterministic checks
+                       only, emits the result as JSON, skips the LLM audit,
+                       and does NOT gate output on pass/fail. NOT a substitute
+                       for the conformant attestation flow — output is not a
+                       valid predicate and MUST NOT be signed and published as
+                       one. Used by the oss-verified watchlist for monthly
+                       monitoring of candidate projects.
   -h, --help           Show this help
 
-Required environment:
+Required environment (unless --deterministic-only):
   ANTHROPIC_API_KEY    SPEC §7 LLM audit. The CLI exits 1 if missing —
                        per SPEC §4 the LLM step is mandatory and there
                        is no opt-out.
@@ -120,6 +134,29 @@ async function main(): Promise<void> {
 				? "\x1b[32mPASS\x1b[0m  all deterministic checks succeeded"
 				: "\x1b[31mFAIL\x1b[0m  one or more deterministic checks failed",
 		);
+	}
+
+	if (args.deterministicOnly) {
+		// Internal/preview mode. Emit JSON of the 4 deterministic check results
+		// + the same evidence fields a predicate would carry, then exit 0 even
+		// on failure. NOT a conformant attestation; consumers MUST NOT sign or
+		// publish this output as one.
+		const report = {
+			mode: "deterministic-only",
+			repo_url: ctx.repoUrl,
+			commit_sha: ctx.commitSha,
+			default_branch: branch,
+			checked_at: new Date().toISOString(),
+			deterministic_pass: deterministicPass,
+			criteria,
+			evidence: {
+				osi_response_hash: osiResponseHash,
+				sbom_hash: sbom.sbomHash,
+				sbom_format: sbom.sbomFormat,
+			},
+		};
+		process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+		process.exit(0);
 	}
 
 	if (!deterministicPass) {
