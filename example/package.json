@@ -1,0 +1,7 @@
+{
+	"name": "oss-verified-test-fixture",
+	"version": "1.0.0",
+	"private": true,
+	"license": "MIT",
+	"description": "Reference repo demonstrating an oss-verified-passing project."
+}

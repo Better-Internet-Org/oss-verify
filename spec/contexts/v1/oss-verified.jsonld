@@ -1,0 +1,37 @@
+{
+	"@context": {
+		"@version": 1.1,
+		"@protected": true,
+		"ossv": "https://oss-verified.better-internet.org/vocab/v1#",
+		"xsd": "http://www.w3.org/2001/XMLSchema#",
+
+		"OssVerifiedCredential": "ossv:OssVerifiedCredential",
+		"OssVerifiedSubject": "ossv:OssVerifiedSubject",
+		"SigstoreAttestation": "ossv:SigstoreAttestation",
+
+		"repository": { "@id": "ossv:repository", "@type": "@id" },
+		"commitSha": "ossv:commitSha",
+		"forge": "ossv:forge",
+		"defaultBranch": "ossv:defaultBranch",
+		"attestedAt": { "@id": "ossv:attestedAt", "@type": "xsd:dateTime" },
+
+		"criteria": {
+			"@id": "ossv:criteria",
+			"@type": "@id",
+			"@container": "@set"
+		},
+		"predicateType": { "@id": "ossv:predicateType", "@type": "@id" },
+		"modelId": "ossv:modelId",
+		"promptHash": "ossv:promptHash",
+		"sbomHash": "ossv:sbomHash",
+		"sbomFormat": "ossv:sbomFormat",
+		"sbomUri": { "@id": "ossv:sbomUri", "@type": "@id" },
+		"cliVersion": "ossv:cliVersion",
+		"cliSha": "ossv:cliSha",
+
+		"rekorLogIndex": { "@id": "ossv:rekorLogIndex", "@type": "xsd:integer" },
+		"rekorUrl": { "@id": "ossv:rekorUrl", "@type": "@id" },
+		"fulcioCertificateChain": "ossv:fulcioCertificateChain",
+		"oidcIssuer": { "@id": "ossv:oidcIssuer", "@type": "@id" }
+	}
+}

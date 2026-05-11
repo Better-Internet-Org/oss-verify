@@ -1,0 +1,82 @@
+{
+	"$comment": "LLM model allowlist for the oss-verified audit pass. See SPEC.md §7. Updates are public PRs with a 14-day comment window. Removals are immediate; previously-issued attestations referencing a removed model retain validity but cannot be refreshed against it.",
+	"version": "1",
+	"updated": "2026-05-08",
+	"review_window_days": 14,
+	"inclusion_criteria": [
+		"Stable, versioned API with stable model identifiers that don't silently change.",
+		"Auditable model identity in API responses (system_fingerprint, signed response headers, etc.) so verifiers can confirm the predicate's claimed model actually answered.",
+		"Vendor retention/availability commitment of >=12 months for the listed model version.",
+		"Documented determinism at temperature=0; vendor publishes the variance window or commits to deterministic outputs.",
+		"Per-call cost reasonable for adoption (target: under ~$0.50 USD per typical-size repo audit).",
+		"Public capability documentation sufficient that a reviewer can judge whether the audit prompt is appropriate for the model."
+	],
+	"models": [
+		{
+			"model_id": "claude-opus-4-7",
+			"vendor": "Anthropic",
+			"api_endpoint": "https://api.anthropic.com/v1/messages",
+			"model_identity_method": "response.model field + response headers",
+			"retention_until": "2027-05-08",
+			"determinism_doc": null,
+			"typical_cost_per_repo_usd": 0.45,
+			"status": "active",
+			"added_date": "2026-05-08",
+			"added_pr": null,
+			"notes": "Default audit model. Strongest reasoning on subtle license/blob heuristics."
+		},
+		{
+			"model_id": "claude-sonnet-4-6",
+			"vendor": "Anthropic",
+			"api_endpoint": "https://api.anthropic.com/v1/messages",
+			"model_identity_method": "response.model field + response headers",
+			"retention_until": "2027-05-08",
+			"determinism_doc": null,
+			"typical_cost_per_repo_usd": 0.18,
+			"status": "active",
+			"added_date": "2026-05-08",
+			"added_pr": null,
+			"notes": "Cost-balanced default for the staging environment."
+		},
+		{
+			"model_id": "claude-haiku-4-5",
+			"vendor": "Anthropic",
+			"api_endpoint": "https://api.anthropic.com/v1/messages",
+			"model_identity_method": "response.model field + response headers",
+			"retention_until": "2027-05-08",
+			"determinism_doc": null,
+			"typical_cost_per_repo_usd": 0.05,
+			"status": "active",
+			"added_date": "2026-05-08",
+			"added_pr": null,
+			"notes": "Lowest-cost option; recommended for very small repos or local-dry-run flows."
+		},
+		{
+			"model_id": "gpt-5",
+			"vendor": "OpenAI",
+			"api_endpoint": "https://api.openai.com/v1/chat/completions",
+			"model_identity_method": "response.system_fingerprint + response.model field",
+			"retention_until": "2027-05-08",
+			"determinism_doc": null,
+			"typical_cost_per_repo_usd": 0.4,
+			"status": "active",
+			"added_date": "2026-05-08",
+			"added_pr": null,
+			"notes": null
+		},
+		{
+			"model_id": "gemini-2.5-pro",
+			"vendor": "Google",
+			"api_endpoint": "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-pro:generateContent",
+			"model_identity_method": "response.modelVersion field",
+			"retention_until": "2027-05-08",
+			"determinism_doc": null,
+			"typical_cost_per_repo_usd": 0.35,
+			"status": "active",
+			"added_date": "2026-05-08",
+			"added_pr": null,
+			"notes": null
+		}
+	],
+	"removed": []
+}

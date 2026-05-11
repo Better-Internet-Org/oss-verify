@@ -1,0 +1,33 @@
+{
+	"name": "oss-verify",
+	"version": "0.1.0-draft",
+	"private": false,
+	"type": "module",
+	"description": "Forge-agnostic CLI for the oss-verified badge: deterministic open-source-licensing checks + LLM audit + Sigstore-keyless attestation.",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/better-internet-org/oss-verify.git"
+	},
+	"homepage": "https://oss-verified.better-internet.org",
+	"license": "MIT",
+	"bin": {
+		"oss-verify": "./dist/cli.js"
+	},
+	"scripts": {
+		"dev": "node --experimental-strip-types src/cli.ts",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write ."
+	},
+	"dependencies": {
+		"spdx-expression-parse": "^4.0.0",
+		"spdx-license-ids": "^3.0.20"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/node": "^22.0.0",
+		"@types/spdx-expression-parse": "^3.0.5",
+		"tsx": "^4.19.0",
+		"typescript": "^5.7.0"
+	}
+}

@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: MIT
+name: oss-verify
+description: Run the oss-verified deterministic checks + LLM audit and sign via Sigstore keyless.
+author: Better Internet
+
+inputs:
+  model-id:
+    description: model_id for the LLM audit. Must be on spec/models.json active allowlist.
+    required: false
+    default: "claude-sonnet-4-6"
+  anthropic-api-key:
+    description: Anthropic API key. If unset, the CLI runs --allow-llm-skip (non-conforming per SPEC §4).
+    required: false
+    default: ""
+  skip-llm:
+    description: Force --allow-llm-skip even if an API key is present. Use only for development.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Enable pnpm
+      shell: bash
+      run: |
+        corepack enable
+        corepack prepare pnpm@10 --activate
+
+    - name: Install CLI deps
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: pnpm install --frozen-lockfile --prefer-offline
+
+    - name: Run oss-verify
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        OSS_VERIFY_MODEL_ID: ${{ inputs.model-id }}
+      run: |
+        FLAGS="--output predicate"
+        if [ "${{ inputs.skip-llm }}" = "true" ] || [ -z "$ANTHROPIC_API_KEY" ]; then
+          FLAGS="$FLAGS --allow-llm-skip"
+        fi
+        # shellcheck disable=SC2086
+        npx -y tsx "${{ github.action_path }}/src/cli.ts" $FLAGS > /tmp/predicate.json
+        echo "::group::Predicate"
+        head -c 2000 /tmp/predicate.json
+        echo
+        echo "::endgroup::"
+
+    - uses: sigstore/cosign-installer@v3
+      with:
+        cosign-release: v2.4.1
+
+    - name: Sign predicate with Sigstore (keyless via OIDC)
+      shell: bash
+      run: |
+        cosign attest-blob \
+          --predicate /tmp/predicate.json \
+          --type "https://oss-verified.better-internet.org/predicate/v1" \
+          --bundle /tmp/attestation.bundle \
+          --new-bundle-format \
+          --yes \
+          /tmp/predicate.json
+        echo "Bundle: $(wc -c < /tmp/attestation.bundle) bytes"
+
+    - name: Commit bundle to .oss-verified/attestation.bundle
+      shell: bash
+      run: |
+        mkdir -p .oss-verified
+        cp /tmp/attestation.bundle .oss-verified/attestation.bundle
+        if git diff --quiet -- .oss-verified/attestation.bundle; then
+          echo "Bundle unchanged — skipping commit."
+          exit 0
+        fi
+        git config user.name  "oss-verified-bot"
+        git config user.email "oss-verified-bot@users.noreply.github.com"
+        git add .oss-verified/attestation.bundle
+        git commit -m "ci(oss-verified): refresh attestation bundle"
+        git push

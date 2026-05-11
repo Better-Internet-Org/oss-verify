@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+name: oss-verified
+
+# Re-attest on every push to the default branch.
+# `paths-ignore: .oss-verified/**` prevents the bundle-commit triggering
+# its own re-run loop.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".oss-verified/**"
+
+permissions:
+  contents: write   # commit + push the attestation bundle back
+  id-token: write   # OIDC for Sigstore keyless signing
+
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: better-internet-org/oss-verify@main
+        with:
+          # Optional. Without it, --allow-llm-skip kicks in and the predicate
+          # carries an explicit "non-conforming per SPEC §4" rationale so
+          # verifiers can see the LLM-audit gap.
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
