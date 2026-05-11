@@ -9,7 +9,7 @@
 	"description": "Forge-agnostic CLI for the oss-verified badge: deterministic open-source-licensing checks + LLM audit + Sigstore-keyless attestation.",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/better-internet-org/oss-verify.git"
+		"url": "https://github.com/Better-Internet-Org/oss-verify.git"
 	},
 	"homepage": "https://oss-verified.better-internet.org",
 	"license": "MIT",
