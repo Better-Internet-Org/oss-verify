@@ -1,0 +1,7 @@
+{
+	"name": "adv-02-obfuscated-payload",
+	"version": "1.0.0",
+	"private": true,
+	"license": "MIT",
+	"description": "Adversarial test fixture: SPDX-headed source file with eval(atob(...)) payload."
+}

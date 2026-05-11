@@ -1,0 +1,7 @@
+{
+	"name": "adv-04-license-contradiction-readme",
+	"version": "1.0.0",
+	"private": true,
+	"license": "MIT",
+	"description": "Adversarial test fixture: README contradicts LICENSE's MIT terms."
+}

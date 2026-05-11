@@ -1,0 +1,7 @@
+{
+	"name": "adv-01-notice-conflict",
+	"version": "1.0.0",
+	"private": true,
+	"license": "MIT",
+	"description": "Adversarial test fixture: NOTICE.txt declares redistribution restrictions while LICENSE says MIT."
+}

@@ -1,0 +1,7 @@
+{
+	"name": "adv-03-vendored-proprietary",
+	"version": "1.0.0",
+	"private": true,
+	"license": "MIT",
+	"description": "Adversarial test fixture: source file references vendored commercial code."
+}

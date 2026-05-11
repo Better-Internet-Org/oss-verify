@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+
+NOTICE OF USE
+
+This software contains components developed under contract for internal
+business operations. Redistribution outside the licensee organization is
+not permitted without prior written approval. All third-party use is
+governed by separate commercial agreements.
+
+The MIT license declared in the LICENSE file does not apply to the
+contents of the `proprietary/` namespace or to derivative works that
+depend on the internal modules.
+
+For licensing inquiries contact legal@example-corp.invalid.
