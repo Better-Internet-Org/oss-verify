@@ -64,12 +64,32 @@ The LLM audit (SPEC §7) is a second-opinion pass that can BLOCK but not GRANT. 
 
 ## Run the CLI directly
 
+Three install paths:
+
+```bash
+# npm (recommended for Node 22+ environments)
+npm install -g oss-verify
+ANTHROPIC_API_KEY=... oss-verify
+
+# Standalone binary (no Node required — downloads ~50 MB)
+curl -L -o oss-verify \
+  https://github.com/better-internet-org/oss-verify/releases/latest/download/oss-verify-linux-x64
+chmod +x oss-verify && ANTHROPIC_API_KEY=... ./oss-verify
+
+# Docker
+docker run --rm \
+  -v "$PWD:/work" -w /work \
+  -e ANTHROPIC_API_KEY \
+  ghcr.io/better-internet-org/oss-verify:latest --output predicate
+```
+
+Or run from source for development:
+
 ```bash
 git clone https://github.com/better-internet-org/oss-verify
 cd oss-verify
 pnpm install
-# In your project:
-ANTHROPIC_API_KEY=... node --experimental-strip-types /path/to/oss-verify/src/cli.ts
+ANTHROPIC_API_KEY=... node --experimental-strip-types src/cli.ts
 ```
 
 Flags:

@@ -10,14 +10,22 @@
 	},
 	"homepage": "https://oss-verified.better-internet.org",
 	"license": "MIT",
-	"bin": {
-		"oss-verify": "./dist/cli.js"
+	"keywords": ["sigstore", "sbom", "spdx", "osi", "verifiable-credentials", "did", "in-toto"],
+	"engines": {
+		"node": ">=22"
 	},
+	"bin": {
+		"oss-verify": "./dist/cli.mjs"
+	},
+	"files": ["dist/", "spec/", "LICENSE", "README.md"],
 	"scripts": {
 		"dev": "node --experimental-strip-types src/cli.ts",
+		"build": "node scripts/build.mjs",
+		"build:binaries": "bash scripts/build-binaries.sh",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
-		"format": "biome check --write ."
+		"format": "biome check --write .",
+		"prepack": "node scripts/build.mjs"
 	},
 	"dependencies": {
 		"spdx-expression-parse": "^4.0.0",
