@@ -1,0 +1,95 @@
+{
+	"$comment": "CI provider OIDC allowlist for cosign keyless signing against Sigstore production Fulcio. See SPEC.md §6. Every active issuer MUST be on Fulcio's public OIDC allowlist (https://github.com/sigstore/fulcio/tree/main/config). Updates are public PRs with a 14-day comment window. Removals are immediate.",
+	"version": "1",
+	"updated": "2026-05-08",
+	"review_window_days": 14,
+	"trust_root": {
+		"fulcio_url": "https://fulcio.sigstore.dev",
+		"rekor_url": "https://rekor.sigstore.dev"
+	},
+	"inclusion_criteria": [
+		"Issuer is on Sigstore production Fulcio's public OIDC allowlist.",
+		"Issuer's identity claims include enough subject metadata to bind an attestation to a specific repo + workflow + commit (so the verify endpoint can cross-check against the predicate's claimed repo URL).",
+		"Issuer is operated by an entity with a published security disclosure process."
+	],
+	"providers": [
+		{
+			"name": "GitHub Actions",
+			"issuer": "https://token.actions.githubusercontent.com",
+			"forges_supported": ["github.com"],
+			"subject_pattern": "repo:<owner>/<repo>:ref:refs/heads/<branch>",
+			"status": "active",
+			"added_date": "2026-05-08",
+			"added_pr": null,
+			"notes": "Day-1 target. Cross-checks: subject claim's repo MUST equal predicate.repo_url."
+		},
+		{
+			"name": "GitLab CI (gitlab.com)",
+			"issuer": "https://gitlab.com",
+			"forges_supported": ["gitlab.com"],
+			"subject_pattern": "project_path:<group>/<project>:ref_type:branch:ref:<branch>",
+			"status": "active",
+			"added_date": "2026-05-08",
+			"added_pr": null,
+			"notes": "Day-1 target. Self-hosted GitLab instances are NOT covered by this entry; each self-hosted instance would require its own allowlist entry once Fulcio trusts it."
+		},
+		{
+			"name": "Buildkite",
+			"issuer": null,
+			"forges_supported": ["github.com", "gitlab.com", "bitbucket.org"],
+			"subject_pattern": null,
+			"status": "candidate",
+			"added_date": null,
+			"added_pr": null,
+			"notes": "Phase 1 candidate. Issuer URL to be verified against Fulcio's live config before activation."
+		},
+		{
+			"name": "Google Cloud Build",
+			"issuer": null,
+			"forges_supported": ["github.com", "source.developers.google.com"],
+			"subject_pattern": null,
+			"status": "candidate",
+			"added_date": null,
+			"added_pr": null,
+			"notes": "Phase 1 candidate. Issuer URL to be verified before activation."
+		},
+		{
+			"name": "AWS CodeBuild",
+			"issuer": null,
+			"forges_supported": ["github.com", "codecommit"],
+			"subject_pattern": null,
+			"status": "candidate",
+			"added_date": null,
+			"added_pr": null,
+			"notes": "Phase 1 candidate. Issuer URL to be verified before activation."
+		},
+		{
+			"name": "Azure Pipelines",
+			"issuer": null,
+			"forges_supported": ["github.com", "dev.azure.com"],
+			"subject_pattern": null,
+			"status": "candidate",
+			"added_date": null,
+			"added_pr": null,
+			"notes": "Phase 1 candidate. Issuer URL to be verified before activation."
+		},
+		{
+			"name": "Codefresh",
+			"issuer": null,
+			"forges_supported": ["github.com", "gitlab.com", "bitbucket.org"],
+			"subject_pattern": null,
+			"status": "candidate",
+			"added_date": null,
+			"added_pr": null,
+			"notes": "Phase 1 candidate. Issuer URL to be verified before activation."
+		}
+	],
+	"deferred": [
+		{
+			"name": "Codeberg / Forgejo",
+			"reason": "Forgejo has not yet shipped Fulcio-trusted OIDC as of the spec date. Reconsider when the upstream feature lands.",
+			"reconsider_after": null
+		}
+	],
+	"removed": []
+}

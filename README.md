@@ -4,9 +4,9 @@
 
 CLI + GitHub Action that produces the [`oss-verified`](https://oss-verified.better-internet.org) badge attestation: deterministic open-source-licensing checks + LLM audit + Sigstore keyless signature.
 
-**Verify endpoint, SPEC, and infra**: https://gitlab.c9group.org/betterinternet/oss-verified  
-**Badge URL**: `https://oss-verified.better-internet.org/badge/github/<owner>/<repo>`  
-**Trust model**: Sigstore (bedrock) → W3C Verifiable Credential (portable wrapper). [Plan](https://gitlab.c9group.org/betterinternet/oss-verified/-/blob/main/plans/001_oss-verified-badge.md).
+- **SPEC** (normative): [`spec/SPEC.md`](./spec/SPEC.md)
+- **Badge URL**: `https://oss-verified.better-internet.org/badge/github/<owner>/<repo>`
+- **Trust model**: Sigstore (bedrock) → W3C Verifiable Credential (portable wrapper). Detail in SPEC §6–§8.
 
 ## Use it as a GitHub Action
 
@@ -40,7 +40,7 @@ Then visit `https://oss-verified.better-internet.org/badge/github/<your-owner>/<
 
 ## What it checks
 
-Per [SPEC §3](https://gitlab.c9group.org/betterinternet/oss-verified/-/blob/main/packages/spec/SPEC.md), the CLI must independently pass:
+Per [SPEC §3](./spec/SPEC.md), the CLI must independently pass:
 
 1. **REUSE compliance** — every source file carries a `SPDX-License-Identifier` header.
 2. **OSI-approved declared license** — `package.json#license` or `LICENSE`'s SPDX header resolves to OSI-approved leaves only.
@@ -89,7 +89,7 @@ Every attestation is published in [Sigstore Rekor](https://rekor.sigstore.dev) w
 - Cert chains to a pinned Sigstore Fulcio root.
 - DSSE PAE signature verified with the cert's public key.
 - Rekor inclusion proof + signed-entry-timestamp verified.
-- OIDC issuer pinned to [`ci-providers.json`](https://gitlab.c9group.org/betterinternet/oss-verified/-/blob/main/packages/spec/ci-providers.json) (today: GitHub Actions, GitLab CI).
+- OIDC issuer pinned to [`ci-providers.json`](./spec/ci-providers.json) (today: GitHub Actions, GitLab CI).
 - SAN bound to the specific repo so a cert from another repo can't satisfy this badge.
 
 The full SPEC and the verifier source are public — that's load-bearing. Don't trust a badge program whose verifier you can't read.

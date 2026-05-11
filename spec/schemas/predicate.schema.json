@@ -1,0 +1,138 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://oss-verified.better-internet.org/schemas/predicate.v1.schema.json",
+	"title": "OssVerifiedPredicate",
+	"description": "in-toto predicate emitted by the oss-verify CLI and signed via Sigstore. See SPEC.md §5. The predicate type URI is https://oss-verified.better-internet.org/predicate/v1.",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"commit_sha",
+		"repo_url",
+		"criteria",
+		"evidence",
+		"model_id",
+		"prompt_hash",
+		"cli_version",
+		"cli_sha",
+		"attested_at"
+	],
+	"properties": {
+		"commit_sha": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{40}$",
+			"description": "Git commit SHA being attested. Lowercase hex, length 40 (SHA-1) or 64 (SHA-256). Schema currently constrains to 40; extend when the toolchain migrates."
+		},
+		"repo_url": {
+			"type": "string",
+			"format": "uri",
+			"description": "Canonical clone URL of the repository, normalised (no trailing .git, https scheme). MUST match the OIDC subject claim of the signing CI."
+		},
+		"default_branch": {
+			"type": "string",
+			"description": "Name of the default branch at attestation time (e.g. 'main')."
+		},
+		"criteria": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["reuse", "osi_license", "dependency_licenses", "no_proprietary_blobs"],
+			"properties": {
+				"reuse": { "$ref": "#/$defs/criterionResult" },
+				"osi_license": { "$ref": "#/$defs/criterionResult" },
+				"dependency_licenses": { "$ref": "#/$defs/criterionResult" },
+				"no_proprietary_blobs": { "$ref": "#/$defs/criterionResult" }
+			}
+		},
+		"evidence": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["osi_response_hash", "sbom_hash", "sbom_format"],
+			"properties": {
+				"osi_response_hash": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$",
+					"description": "sha256 of the JSON response from the OSI license API queried at attestation time."
+				},
+				"sbom_hash": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$",
+					"description": "sha256 of the SBOM document (canonicalised)."
+				},
+				"sbom_format": {
+					"type": "string",
+					"enum": ["spdx-2.3", "cyclonedx-1.5", "cyclonedx-1.6"],
+					"description": "SBOM format identifier."
+				},
+				"sbom_uri": {
+					"type": ["string", "null"],
+					"format": "uri",
+					"description": "Optional URI where the SBOM is published. Verifiers may fetch and re-hash to confirm sbom_hash."
+				},
+				"exemptions": {
+					"type": "array",
+					"description": "Maintainer-declared exemptions from .oss-verified.toml, recorded verbatim. Surfaced on the verify page; reviewers and end users may challenge them.",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["path", "justification"],
+						"properties": {
+							"path": { "type": "string" },
+							"justification": { "type": "string", "minLength": 1 }
+						}
+					}
+				},
+				"llm_verdict": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["verdict"],
+					"properties": {
+						"verdict": { "type": "string", "enum": ["pass", "block"] },
+						"rationale": { "type": "string" },
+						"passes": {
+							"type": "integer",
+							"minimum": 1,
+							"description": "Number of independent LLM calls. Phase 1 may be 1; Phase 2 mandates 3 with strict-majority voting."
+						}
+					}
+				}
+			}
+		},
+		"model_id": {
+			"type": "string",
+			"description": "Stable model identifier from packages/spec/models.json. Verifiers MUST cross-reference against the allowlist version that was current at attested_at."
+		},
+		"prompt_hash": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{64}$",
+			"description": "sha256 of the canonicalised LLM audit prompt template + the data-envelope wrapper, excluding the repo content itself."
+		},
+		"cli_version": {
+			"type": "string",
+			"pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+			"description": "Semantic version of the oss-verify CLI binary that produced this predicate."
+		},
+		"cli_sha": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{64}$",
+			"description": "sha256 of the CLI binary. Verifiers cross-check against published release artefacts."
+		},
+		"attested_at": {
+			"type": "string",
+			"format": "date-time",
+			"description": "RFC 3339 timestamp at which the CLI emitted the predicate. Informational only; the binding time is the Rekor inclusion timestamp."
+		}
+	},
+	"$defs": {
+		"criterionResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["pass"],
+			"properties": {
+				"pass": { "type": "boolean" },
+				"details": {
+					"type": "string",
+					"description": "Optional human-readable detail. Verifiers MUST treat the boolean as binding; details are surface-area only."
+				}
+			}
+		}
+	}
+}

@@ -81,7 +81,7 @@ export async function runLlmAudit(
 	);
 	if (!allowlisted) {
 		throw new Error(
-			`model_id '${opts.modelId}' is not on the active allowlist in spec/models.json. Add it via a public PR (the SPEC's models.json lives at https://gitlab.c9group.org/betterinternet/oss-verified/-/blob/main/packages/spec/models.json) before using it.`,
+			`model_id '${opts.modelId}' is not on the active allowlist in spec/models.json (SPEC §7.2). Add it via a public PR to github.com/better-internet-org/oss-verify before using it.`,
 		);
 	}
 
