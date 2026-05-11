@@ -1,5 +1,5 @@
 {
-	"name": "@better-internet-org/oss-verify",
+	"name": "@better-internet/oss-verify",
 	"version": "0.1.0-draft",
 	"private": false,
 	"publishConfig": {

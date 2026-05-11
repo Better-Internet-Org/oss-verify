@@ -68,7 +68,7 @@ Three install paths:
 
 ```bash
 # npm (recommended for Node 22+ environments)
-npm install -g @better-internet-org/oss-verify
+npm install -g @better-internet/oss-verify
 ANTHROPIC_API_KEY=... oss-verify
 
 # Standalone binary (no Node required — downloads ~50 MB)
