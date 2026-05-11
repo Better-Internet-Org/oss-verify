@@ -97,15 +97,52 @@ export async function runLlmAudit(
 	const envelope = buildEnvelope(ctx);
 	const promptHash = sha256Hex(`${PROMPT_TEMPLATE_VERSION}\n${SYSTEM_PROMPT}\n\n${envelope.text}`);
 
-	const verdict = await callAnthropic({
-		modelId: opts.modelId,
-		apiKey: opts.apiKey,
-		endpoint: allowlisted.api_endpoint,
-		system: SYSTEM_PROMPT,
-		envelope: envelope.text,
-	});
+	// SPEC §7.4: three independent calls at temperature=0; majority verdict wins.
+	// "Block" must be a strict majority — a 1:1:1 outcome (one of each + an error
+	// or unparseable) defaults to block, since the audit is a veto layer.
+	const apiKey = opts.apiKey;
+	const callOnce = () =>
+		callAnthropic({
+			modelId: opts.modelId,
+			apiKey,
+			endpoint: allowlisted.api_endpoint,
+			system: SYSTEM_PROMPT,
+			envelope: envelope.text,
+		});
+	const verdicts = await Promise.all([callOnce(), callOnce(), callOnce()]);
+	const verdict = majorityVerdict(verdicts);
 
 	return { verdict, promptHash, modelId: opts.modelId };
+}
+
+/**
+ * Strict-majority voting per SPEC §7.4. Three independent verdicts:
+ *   - pass:pass:pass        -> pass
+ *   - pass:pass:block       -> pass (2/3 pass)
+ *   - pass:block:block      -> block (2/3 block)
+ *   - block:block:block     -> block
+ * Ties to block: a 1:1:1 with anomalies, or any blocking majority that's
+ * less than full agreement, still blocks — the LLM is a veto layer (§7.1).
+ */
+function majorityVerdict(verdicts: LlmVerdict[]): LlmVerdict {
+	const blockCount = verdicts.filter((v) => v.verdict === "block").length;
+	const passCount = verdicts.length - blockCount;
+	if (blockCount >= 2) {
+		const rationales = verdicts
+			.filter((v) => v.verdict === "block")
+			.map((v) => v.rationale)
+			.filter(Boolean) as string[];
+		return {
+			verdict: "block",
+			rationale: `${blockCount}/${verdicts.length} passes blocked: ${rationales.join(" | ")}`,
+			passes: verdicts.length,
+		};
+	}
+	return {
+		verdict: "pass",
+		rationale: `${passCount}/${verdicts.length} passes accepted`,
+		passes: verdicts.length,
+	};
 }
 
 function buildEnvelope(ctx: CheckContext): { text: string; truncated: boolean; fileCount: number } {
