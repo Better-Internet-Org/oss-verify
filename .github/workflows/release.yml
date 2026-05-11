@@ -69,6 +69,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Docker registry names must be lowercase; the org is "Better-Internet-Org"
+      # so the raw github.repository_owner can't be used as a tag directly.
+      - name: Lowercase owner for registry tag
+        id: img
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - name: Build + push Docker image
         uses: docker/build-push-action@v6
         with:
@@ -77,8 +83,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/oss-verify:latest
-            ghcr.io/${{ github.repository_owner }}/oss-verify:${{ github.ref_name }}
+            ghcr.io/${{ steps.img.outputs.owner }}/oss-verify:latest
+            ghcr.io/${{ steps.img.outputs.owner }}/oss-verify:${{ github.ref_name }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
