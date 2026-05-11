@@ -73,12 +73,15 @@ runs:
       run: |
         mkdir -p .oss-verified
         cp /tmp/attestation.bundle .oss-verified/attestation.bundle
-        if git diff --quiet -- .oss-verified/attestation.bundle; then
+        # Stage first so the diff catches new (untracked) files too — plain
+        # `git diff` ignores untracked paths, which on the first run silently
+        # turns "new bundle" into a no-op.
+        git add .oss-verified/attestation.bundle
+        if git diff --cached --quiet -- .oss-verified/attestation.bundle; then
           echo "Bundle unchanged — skipping commit."
           exit 0
         fi
         git config user.name  "oss-verified-bot"
         git config user.email "oss-verified-bot@users.noreply.github.com"
-        git add .oss-verified/attestation.bundle
         git commit -m "ci(oss-verified): refresh attestation bundle"
         git push
