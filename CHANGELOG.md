@@ -14,6 +14,16 @@ Container image: `ghcr.io/better-internet-org/oss-verify:<tag>`.
 
 Anything merged to `main` between releases lands here. Tagging `v*` cuts a release; the workflow at `.github/workflows/release.yml` publishes npm + binaries + Docker on the tag.
 
+## [0.1.1] — 2026-05-11
+
+### Fixed
+
+- `src/git.ts` bumps `execSync` `maxBuffer` from the 1 MiB default to 64 MiB.
+  Previously `git ls-files --cached --exclude-standard` against any repo with
+  more than ~15k files (e.g. posthog at 21k) threw `ENOBUFS` synchronously
+  before `--report-json` could emit a JSON status report, so the watchlist
+  runner saw a stack trace instead of `{ overall_pass: false, ... }`.
+
 ## [0.1.0-draft] — 2026-05-11
 
 First public release. Everything below predates this tag — the changelog starts here.

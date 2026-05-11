@@ -1,7 +1,17 @@
 import { execSync } from "node:child_process";
 
+// 64 MiB stdout — `git ls-files` on a 21k-file repo (posthog) exceeds the
+// 1 MiB default and throws ENOBUFS before we can do anything with it; the
+// other helpers here are small but inherit the same setting for consistency.
+const MAX_BUFFER = 64 * 1024 * 1024;
+
 const exec = (cmd: string, cwd: string): string =>
-	execSync(cmd, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+	execSync(cmd, {
+		cwd,
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "pipe"],
+		maxBuffer: MAX_BUFFER,
+	}).trim();
 
 export function commitSha(repoRoot: string): string {
 	return exec("git rev-parse HEAD", repoRoot);
