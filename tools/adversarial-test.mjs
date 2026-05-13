@@ -16,8 +16,8 @@
 //   1  threshold not met; corpus needs strengthening or model regressed
 //   2  invocation error (missing API key, broken fixture, etc.)
 
-import { execFileSync, mkdtempSync, rmSync, spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
