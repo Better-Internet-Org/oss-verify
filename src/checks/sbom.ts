@@ -69,10 +69,20 @@ export async function checkSbom(ctx: CheckContext): Promise<SbomResult> {
 	const sbomHash = sha256Hex(canonicalJson(sbom));
 
 	if (allMissing.length > 0) {
+		// "Unresolved" = the registry/index lookup failed for this dependency
+		// (e.g. unpublished Go module on deps.dev, custom forked package, or
+		// transient network failure). Distinct from "found a non-OSI license":
+		// these may well be OSI-licensed but we can't confirm. SPEC §3.3
+		// requires us to be able to verify *every* dependency's license, so
+		// this still fails the check — but the details now make it clear this
+		// is a resolution gap, not a confirmed violation, and re-running may
+		// succeed (registry mirror, package republished, etc.).
+		const detName = (s: string) => s.split("@")[0];
+		const ecosystems = detections.map((d) => d.ecosystem).join("+");
 		return {
 			result: {
 				pass: false,
-				details: `${allMissing.length} unresolved entr${allMissing.length === 1 ? "y" : "ies"}: ${allMissing.slice(0, 5).join(" | ")}${allMissing.length > 5 ? `, +${allMissing.length - 5} more` : ""}`,
+				details: `${allMissing.length} dependenc${allMissing.length === 1 ? "y" : "ies"} (${ecosystems}) had no resolvable license — registry lookup failed (retry-eligible; these may be OSI-licensed but we can't confirm):\n  - ${allMissing.slice(0, 10).map(detName).join("\n  - ")}${allMissing.length > 10 ? `\n  +${allMissing.length - 10} more` : ""}`,
 			},
 			sbomHash,
 			sbomFormat: "cyclonedx-1.5",

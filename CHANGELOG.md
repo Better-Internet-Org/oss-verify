@@ -14,6 +14,23 @@ Container image: `ghcr.io/better-internet-org/oss-verify:<tag>`.
 
 Anything merged to `main` between releases lands here. Tagging `v*` cuts a release; the workflow at `.github/workflows/release.yml` publishes npm + binaries + Docker on the tag.
 
+## [0.1.2] — 2026-05-13
+
+### Fixed
+
+Three high-false-positive heuristics, all surfaced by running the CLI against AlistGo/alist (real-world AGPL-3.0 repo with conventional LICENSE file). The criteria reported `3 of 4 failed` when really only one criterion failed.
+
+- **REUSE compliance** (`src/checks/reuse.ts`) now recognises the three valid declaration patterns the REUSE standard itself permits, not only per-file SPDX headers:
+  - Per-file `SPDX-License-Identifier` headers (strict REUSE) — existing behaviour.
+  - `.reuse/dep5` or `REUSE.toml` repo-level declaration — new; passes without inspecting per-file headers.
+  - Root `LICENSE` / `LICENCE` / `COPYING` file with a recognisable license, in the absence of REUSE-format files — new; accepted as a blanket declaration. Resolves the 100% false-positive rate against projects that declare one license repo-wide without REUSE per-file ceremony.
+- **OSI license detection** (`src/checks/osi-license.ts`) now falls back to text-pattern detection against the LICENSE body when neither `package.json#license` nor an `SPDX-License-Identifier:` header is present. Catches the ~12 most common OSI licenses (MIT, Apache-2.0, GPL-{2,3}, AGPL-3.0, LGPL-{2.1,3.0}, MPL-2.0, BSD-{2,3}-Clause, ISC, Unlicense) via the distinctive preamble of each license body. Result includes a "(detected via LICENSE text match)" note when this path was used.
+- **SBOM unresolved entries** (`src/checks/sbom.ts`) now distinguish "registry lookup failed" from "non-OSI license confirmed" in the details text. Still fails the check (SPEC §3.3 requires verifiable licenses), but is labelled "retry-eligible — these may be OSI-licensed but we can't confirm." Avoids conflating a deps.dev resolution gap with a proprietary-license finding in the reader's mind.
+
+### Added
+
+- `src/checks/license-text.ts`: shared license-text detector used by both `reuse.ts` and `osi-license.ts`. Heuristic regex panel ordered most-specific-first (AGPL before GPL, BSD-3 before BSD-2, etc.).
+
 ## [0.1.1] — 2026-05-11
 
 ### Fixed
