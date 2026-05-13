@@ -2,9 +2,10 @@
 name: adversarial
 
 # SPEC §7.4 exit-criterion check. Runs the corpus in test-corpus/ via
-# tools/adversarial-test.mjs. Skipped on PRs from forks (no API key) and
-# on pushes that don't touch the prompt, models.json, or the corpus —
-# saves API credits on doc-only changes.
+# tools/adversarial-test.mjs. Path-filter trims to runs that actually
+# affect the LLM behaviour. When ANTHROPIC_API_KEY isn't configured on
+# this repo, the corpus run is no-op'd inside the step so the workflow
+# still passes structurally.
 on:
   workflow_dispatch:
   push:
@@ -21,7 +22,6 @@ permissions:
 
 jobs:
   adversarial:
-    if: ${{ secrets.ANTHROPIC_API_KEY != '' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,4 +33,10 @@ jobs:
       - name: Run adversarial corpus
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: node --experimental-strip-types tools/adversarial-test.mjs
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "::notice::ANTHROPIC_API_KEY not configured on this repo — skipping corpus run."
+            echo "::notice::Set the secret in repo settings, then re-run this workflow via workflow_dispatch."
+            exit 0
+          fi
+          node --experimental-strip-types tools/adversarial-test.mjs
