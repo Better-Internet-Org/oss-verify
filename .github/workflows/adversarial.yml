@@ -30,6 +30,10 @@ jobs:
           node-version: 22
       - run: corepack enable && corepack prepare pnpm@10 --activate
       - run: pnpm install --frozen-lockfile
+      # adversarial-test.mjs invokes dist/cli.mjs (Node 22's strip-types
+      # doesn't remap .js imports to .ts for transitive imports, so source-
+      # mode fails with ERR_MODULE_NOT_FOUND). Build first.
+      - run: pnpm build
       - name: Run adversarial corpus
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

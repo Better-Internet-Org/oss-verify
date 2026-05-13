@@ -23,6 +23,18 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const CORPUS = join(ROOT, "test-corpus");
+// We invoke the built CLI rather than src/cli.ts. Node 22's
+// --experimental-strip-types handles the .ts entry point but does NOT remap
+// `import "./blobs.js"` → `./blobs.ts` for transitive imports, so source-mode
+// fails with ERR_MODULE_NOT_FOUND. Building first is also faster — the
+// per-fixture spawn pays the strip-types cost otherwise.
+const CLI_ENTRY = join(ROOT, "dist/cli.mjs");
+if (!existsSync(CLI_ENTRY)) {
+	console.error(
+		`Build artefact missing: ${CLI_ENTRY}\nRun \`pnpm build\` before \`tools/adversarial-test.mjs\` (the npm 'prepack' script does this automatically for releases).`,
+	);
+	process.exit(2);
+}
 
 if (!process.env.ANTHROPIC_API_KEY) {
 	console.error("ANTHROPIC_API_KEY is required to run the adversarial corpus.");
@@ -64,26 +76,14 @@ for (const name of fixtures) {
 			cwd: tmp,
 		});
 
-		const run = spawnSync(
-			"node",
-			[
-				// Node 22's auto type-stripping is gated when the entry point
-				// uses non-erasable syntax (type-only imports, const enums,
-				// etc.); the explicit flag matches the `dev` script in
-				// package.json and works across all 22.x minors.
-				"--experimental-strip-types",
-				join(ROOT, "src/cli.ts"),
-				"--repo",
-				tmp,
-				"--report-json",
-			],
-			{ env: { ...process.env, NO_COLOR: "1" }, encoding: "utf8" },
-		);
+		const run = spawnSync("node", [CLI_ENTRY, "--repo", tmp, "--report-json"], {
+			env: { ...process.env, NO_COLOR: "1" },
+			encoding: "utf8",
+		});
 
 		if (run.status !== 0) {
-			// Print the full stderr (was previously trimmed to the last 2
-			// lines, which often hid the real error and left only the Node
-			// version line visible).
+			// Print the full stderr (previously trimmed to the last 2 lines,
+			// which often hid the real error behind the Node version line).
 			console.warn(`  CLI exited ${run.status}:\n${run.stderr.trim()}`);
 			results.push({ name, status: "error" });
 			continue;
@@ -102,13 +102,27 @@ for (const name of fixtures) {
 			continue;
 		}
 
-		if (llmBlocked) {
+		// Block-due-to-API-error is NOT a real content block — it means the
+		// Anthropic call itself failed (auth, rate-limit, billing, etc.).
+		// Counting it would let the SPEC §7.4 corpus exit criterion pass on
+		// an infrastructure outage. Detect the same patterns the Worker's
+		// verify page uses.
+		const rationale = report.llm_verdict?.rationale ?? "";
+		const isInfraError =
+			/Anthropic API call failed|ANTHROPIC_API_KEY is not set|rate_limit_error|authentication_error|invalid_request_error/i.test(
+				rationale,
+			);
+
+		if (llmBlocked && !isInfraError) {
 			blocked++;
-			console.log(`  ✓ blocked  rationale=${(report.llm_verdict.rationale ?? "").slice(0, 100)}`);
-			results.push({ name, status: "blocked", rationale: report.llm_verdict.rationale });
+			console.log(`  ✓ blocked  rationale=${rationale.slice(0, 100)}`);
+			results.push({ name, status: "blocked", rationale });
+		} else if (isInfraError) {
+			console.warn(`  ✗ infra error (not a content block):\n      ${rationale.slice(0, 200)}`);
+			results.push({ name, status: "infra-error", rationale });
 		} else {
 			console.warn(`  ✗ missed  verdict=${report.llm_verdict?.verdict}`);
-			results.push({ name, status: "missed", rationale: report.llm_verdict?.rationale });
+			results.push({ name, status: "missed", rationale });
 		}
 	} finally {
 		rmSync(tmp, { recursive: true, force: true });
