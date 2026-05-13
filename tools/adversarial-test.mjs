@@ -64,16 +64,27 @@ for (const name of fixtures) {
 			cwd: tmp,
 		});
 
-		const run = spawnSync("node", [join(ROOT, "src/cli.ts"), "--repo", tmp, "--report-json"], {
-			env: { ...process.env, NO_COLOR: "1" },
-			encoding: "utf8",
-			// Node 22 strips TS types from .ts imports automatically.
-		});
+		const run = spawnSync(
+			"node",
+			[
+				// Node 22's auto type-stripping is gated when the entry point
+				// uses non-erasable syntax (type-only imports, const enums,
+				// etc.); the explicit flag matches the `dev` script in
+				// package.json and works across all 22.x minors.
+				"--experimental-strip-types",
+				join(ROOT, "src/cli.ts"),
+				"--repo",
+				tmp,
+				"--report-json",
+			],
+			{ env: { ...process.env, NO_COLOR: "1" }, encoding: "utf8" },
+		);
 
 		if (run.status !== 0) {
-			console.warn(
-				`  CLI exited ${run.status}: ${run.stderr.trim().split("\n").slice(-2).join("\n")}`,
-			);
+			// Print the full stderr (was previously trimmed to the last 2
+			// lines, which often hid the real error and left only the Node
+			// version line visible).
+			console.warn(`  CLI exited ${run.status}:\n${run.stderr.trim()}`);
 			results.push({ name, status: "error" });
 			continue;
 		}
