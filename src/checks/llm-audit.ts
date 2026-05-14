@@ -100,6 +100,15 @@ export async function runLlmAudit(
 	// SPEC §7.4: three independent calls at temperature=0; majority verdict wins.
 	// "Block" must be a strict majority — a 1:1:1 outcome (one of each + an error
 	// or unparseable) defaults to block, since the audit is a veto layer.
+	//
+	// The three calls run *sequentially* rather than in parallel. Parallel
+	// firing creates a 3x burst within ~1s against Anthropic's per-minute
+	// token rate limit (30k tpm on default tier). Posthog-sized envelopes
+	// (~10k input tokens × 3) reliably tripped that ceiling. Sequential adds
+	// ~20s of wallclock per project — invisible for an offline watchlist —
+	// and lets the per-minute window relax between passes. callAnthropic
+	// also retries with backoff on 429, so even sequential bursts that
+	// exceed the limit recover instead of failing.
 	const apiKey = opts.apiKey;
 	const callOnce = () =>
 		callAnthropic({
@@ -109,7 +118,8 @@ export async function runLlmAudit(
 			system: SYSTEM_PROMPT,
 			envelope: envelope.text,
 		});
-	const verdicts = await Promise.all([callOnce(), callOnce(), callOnce()]);
+	const verdicts: LlmVerdict[] = [];
+	for (let i = 0; i < 3; i++) verdicts.push(await callOnce());
 	const verdict = majorityVerdict(verdicts);
 
 	return { verdict, promptHash, modelId: opts.modelId };
@@ -183,6 +193,30 @@ function containsNul(buf: Buffer, max: number): boolean {
 	return false;
 }
 
+// Retry policy for transient Anthropic failures. 429 (rate-limit) and 5xx
+// (gateway / server) are retryable; 4xx-except-429 (auth, bad request, etc.)
+// are not. Honors `retry-after` (seconds) and `retry-after-ms` headers when
+// present; otherwise exponential backoff capped at 30s. Max 4 attempts.
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+const MAX_DELAY_MS = 30_000;
+
+function isRetryable(status: number): boolean {
+	return status === 429 || (status >= 500 && status < 600);
+}
+
+function backoffDelay(attempt: number, res: Response): number {
+	const ms = res.headers.get("retry-after-ms");
+	if (ms && /^\d+$/.test(ms)) return Math.min(Number(ms), MAX_DELAY_MS);
+	const sec = res.headers.get("retry-after");
+	if (sec && /^\d+$/.test(sec)) return Math.min(Number(sec) * 1000, MAX_DELAY_MS);
+	// Exponential with full jitter — 1s, 2s, 4s, 8s capped at 30s.
+	const exp = Math.min(BASE_DELAY_MS * 2 ** attempt, MAX_DELAY_MS);
+	return Math.floor(Math.random() * exp);
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 async function callAnthropic(args: {
 	modelId: string;
 	apiKey: string;
@@ -190,50 +224,60 @@ async function callAnthropic(args: {
 	system: string;
 	envelope: string;
 }): Promise<LlmVerdict> {
-	const res = await fetch(args.endpoint, {
-		method: "POST",
-		headers: {
-			"x-api-key": args.apiKey,
-			"anthropic-version": "2023-06-01",
-			"content-type": "application/json",
-		},
-		body: JSON.stringify({
-			model: args.modelId,
-			max_tokens: 256,
-			temperature: 0,
-			system: args.system,
-			messages: [{ role: "user", content: args.envelope }],
-		}),
+	const body = JSON.stringify({
+		model: args.modelId,
+		max_tokens: 256,
+		temperature: 0,
+		system: args.system,
+		messages: [{ role: "user", content: args.envelope }],
 	});
 
-	if (!res.ok) {
-		const body = await res.text();
-		// Network/auth failure must BLOCK — we have no opinion if the audit
-		// didn't actually run, and the predicate must not be emitted on a
-		// silent fallback.
-		return {
-			verdict: "block",
-			rationale: `Anthropic API call failed (${res.status}): ${body.slice(0, 200)}`,
-			passes: 0,
-		};
+	let lastStatus = 0;
+	let lastBody = "";
+	for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+		const res = await fetch(args.endpoint, {
+			method: "POST",
+			headers: {
+				"x-api-key": args.apiKey,
+				"anthropic-version": "2023-06-01",
+				"content-type": "application/json",
+			},
+			body,
+		});
+
+		if (res.ok) {
+			const data = (await res.json()) as AnthropicResponse;
+			const text = data.content?.find((b) => b.type === "text")?.text?.trim() ?? "";
+			const parsed = parseModelVerdict(text);
+
+			// Belt-and-braces: if the response.model field doesn't match what we
+			// asked for, block. Vendors can route to fallback models; we need
+			// the exact one for predicate integrity.
+			if (data.model && data.model !== args.modelId) {
+				return {
+					verdict: "block",
+					rationale: `response.model '${data.model}' != requested '${args.modelId}'`,
+					passes: 1,
+				};
+			}
+			return { ...parsed, passes: 1 };
+		}
+
+		lastStatus = res.status;
+		lastBody = await res.text();
+		if (!isRetryable(res.status) || attempt === MAX_RETRIES) break;
+		await sleep(backoffDelay(attempt, res));
 	}
 
-	const data = (await res.json()) as AnthropicResponse;
-	const text = data.content?.find((b) => b.type === "text")?.text?.trim() ?? "";
-	const parsed = parseModelVerdict(text);
-
-	// Belt-and-braces: if the response.model field doesn't match what we
-	// asked for, block. Vendors can route to fallback models; we need the
-	// exact one for predicate integrity.
-	if (data.model && data.model !== args.modelId) {
-		return {
-			verdict: "block",
-			rationale: `response.model '${data.model}' != requested '${args.modelId}'`,
-			passes: 1,
-		};
-	}
-
-	return { ...parsed, passes: 1 };
+	// Network/auth failure must BLOCK — we have no opinion if the audit
+	// didn't actually run, and the predicate must not be emitted on a
+	// silent fallback. The "retried N times" suffix flags this as the
+	// outcome of a giving-up retry vs a single-shot failure.
+	return {
+		verdict: "block",
+		rationale: `Anthropic API call failed (${lastStatus}) after ${MAX_RETRIES + 1} attempts: ${lastBody.slice(0, 200)}`,
+		passes: 0,
+	};
 }
 
 function parseModelVerdict(text: string): Omit<LlmVerdict, "passes"> {

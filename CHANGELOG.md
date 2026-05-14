@@ -14,6 +14,17 @@ Container image: `ghcr.io/better-internet-org/oss-verify:<tag>`.
 
 Anything merged to `main` between releases lands here. Tagging `v*` cuts a release; the workflow at `.github/workflows/release.yml` publishes npm + binaries + Docker on the tag.
 
+## [0.1.3] — 2026-05-14
+
+### Fixed
+
+- **LLM audit no longer bursts the Anthropic rate limit.** SPEC §7.4 three-pass voting was firing all three calls with `Promise.all([...])` — a 3× spike against the 30k-tokens-per-minute default tier. Posthog-sized envelopes (~10k input tokens × 3) reliably tripped the ceiling, turning a content audit into a 429 "block" verdict. Calls are now sequential; ~20s slower per project (invisible for a watchlist run) and burst-safe.
+- **`callAnthropic` retries transient failures with backoff.** 429 (rate-limit) and 5xx (gateway / server) are now retried up to 3 times. Honors `Retry-After` and `Retry-After-Ms` headers when Anthropic sends them; otherwise exponential backoff with full jitter (1s → 2s → 4s → 8s, capped at 30s). 4xx-except-429 (auth, bad request) remain non-retryable. The blocking-on-failure rationale now suffixes `… after N attempts: …` so debugging distinguishes a single-shot failure from a giving-up retry.
+
+### Operational note
+
+Together these changes turn a typical watchlist-of-three run from "1 of 3 fixtures got past the rate limit" into "all 3 finish cleanly" at the cost of ~60s extra wallclock. Prompt caching (deferred to a later release) would reclaim that time and reduce token spend ~70-90% on the second and third pass per project.
+
 ## [0.1.2] — 2026-05-13
 
 ### Fixed
